@@ -46,6 +46,10 @@ extern char *chat_read_file(const char *path, const char *key, const char *nonce
 extern char *chat_encrypt_file(chat_ctrl ctrl, const char *from_path, const char *to_path);
 extern char *chat_decrypt_file(const char *from_path, const char *key, const char *nonce, const char *to_path);
 
+static void release_utf8_chars(const char *s) {
+    free((void *)s);
+}
+
 // As a reference: https://stackoverflow.com/a/60002045
 jstring decode_to_utf8_string(JNIEnv *env, char *string) {
     jobject bb = (*env)->NewDirectByteBuffer(env, (void *)string, strlen(string));
@@ -67,7 +71,7 @@ jstring decode_to_utf8_string(JNIEnv *env, char *string) {
 }
 
 char * encode_to_utf8_chars(JNIEnv *env, jstring string) {
-    if (!string) return "";
+    if (!string) return strdup("");
 
     const jclass cls_string = (*env)->FindClass(env, "java/lang/String");
     const jmethodID mid_getBytes = (*env)->GetMethodID(env, cls_string, "getBytes", "(Ljava/lang/String;)[B");
@@ -93,9 +97,9 @@ Java_chat_simplex_common_platform_CoreKt_chatMigrateInit(JNIEnv *env, jclass cla
     const char *_confirm = encode_to_utf8_chars(env, confirm);
     long int *_ctrl = (long) 0;
     jstring res = decode_to_utf8_string(env, chat_migrate_init(_dbPath, _dbKey, _confirm, &_ctrl));
-    (*env)->ReleaseStringUTFChars(env, dbPath, _dbPath);
-    (*env)->ReleaseStringUTFChars(env, dbKey, _dbKey);
-    (*env)->ReleaseStringUTFChars(env, confirm, _confirm);
+    release_utf8_chars((char *)_dbPath);
+    release_utf8_chars((char *)_dbKey);
+    release_utf8_chars((char *)_confirm);
 
     // Creating array of Object's (boxed values can be passed, eg. Long instead of long)
     jobjectArray ret = (jobjectArray)(*env)->NewObjectArray(env, 2, (*env)->FindClass(env, "java/lang/Object"), NULL);
