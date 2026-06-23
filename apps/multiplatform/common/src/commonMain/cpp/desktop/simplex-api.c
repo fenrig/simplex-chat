@@ -13,7 +13,7 @@ Java_chat_simplex_common_platform_CoreKt_initHS(JNIEnv *env, jclass clazz) {
     char *argv[] = {"simplex", "+RTS", "-A64m", "-H64m", NULL}; // non-moving GC is broken on windows with GHC 9.4-9.6.3
 #else
     int argc = 5;
-    char *argv[] = {"simplex", "+RTS", "-A64m", "-H64m", "-xn", NULL}; // see android/simplex-api.c for details
+    char *argv[] = {"simplex", "+RTS", "-A64m", "-H64m", NULL}; // see android/simplex-api.c for details
 #endif
     char **pargv = argv;
     hs_init_with_rtsopts(&argc, &pargv);
@@ -46,6 +46,7 @@ extern char *chat_read_file(const char *path, const char *key, const char *nonce
 extern char *chat_encrypt_file(chat_ctrl ctrl, const char *from_path, const char *to_path);
 extern char *chat_decrypt_file(const char *from_path, const char *key, const char *nonce, const char *to_path);
 
+
 static void release_utf8_chars(const char *s) {
     free((void *)s);
 }
@@ -67,6 +68,12 @@ jstring decode_to_utf8_string(JNIEnv *env, char *string) {
     (*env)->DeleteLocalRef(env, bb);
     (*env)->DeleteLocalRef(env, charset);
     (*env)->DeleteLocalRef(env, cb);
+    return res;
+}
+
+static jstring decode_and_free_utf8_string(JNIEnv *env, char *s) {
+    jstring res = decode_to_utf8_string(env, s);
+    free(s);
     return res;
 }
 
@@ -96,7 +103,7 @@ Java_chat_simplex_common_platform_CoreKt_chatMigrateInit(JNIEnv *env, jclass cla
     const char *_dbKey = encode_to_utf8_chars(env, dbKey);
     const char *_confirm = encode_to_utf8_chars(env, confirm);
     long int *_ctrl = (long) 0;
-    jstring res = decode_to_utf8_string(env, chat_migrate_init(_dbPath, _dbKey, _confirm, &_ctrl));
+    jstring res = decode_and_free_utf8_string(env, chat_migrate_init(_dbPath, _dbKey, _confirm, &_ctrl));
     release_utf8_chars((char *)_dbPath);
     release_utf8_chars((char *)_dbKey);
     release_utf8_chars((char *)_confirm);
@@ -115,14 +122,14 @@ Java_chat_simplex_common_platform_CoreKt_chatMigrateInit(JNIEnv *env, jclass cla
 
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatCloseStore(JNIEnv *env, jclass clazz, jlong controller) {
-    jstring res = decode_to_utf8_string(env, chat_close_store((void*)controller));
+    jstring res = decode_and_free_utf8_string(env, chat_close_store((void*)controller));
     return res;
 }
 
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatSendCmdRetry(JNIEnv *env, jclass clazz, jlong controller, jstring msg, jint retryNum) {
     const char *_msg = encode_to_utf8_chars(env, msg);
-    jstring res = decode_to_utf8_string(env, chat_send_cmd_retry((void*)controller, _msg, retryNum));
+    jstring res = decode_and_free_utf8_string(env, chat_send_cmd_retry((void*)controller, _msg, retryNum));
     release_utf8_chars((char *)_msg);
     return res;
 }
@@ -130,25 +137,25 @@ Java_chat_simplex_common_platform_CoreKt_chatSendCmdRetry(JNIEnv *env, jclass cl
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatSendRemoteCmdRetry(JNIEnv *env, jclass clazz, jlong controller, jint rhId, jstring msg, jint retryNum) {
     const char *_msg = encode_to_utf8_chars(env, msg);
-    jstring res = decode_to_utf8_string(env, chat_send_remote_cmd_retry((void*)controller, rhId, _msg, retryNum));
+    jstring res = decode_and_free_utf8_string(env, chat_send_remote_cmd_retry((void*)controller, rhId, _msg, retryNum));
     release_utf8_chars((char *)_msg);
     return res;
 }
 
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatRecvMsg(JNIEnv *env, jclass clazz, jlong controller) {
-    return decode_to_utf8_string(env, chat_recv_msg((void*)controller));
+    return decode_and_free_utf8_string(env, chat_recv_msg((void*)controller));
 }
 
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatRecvMsgWait(JNIEnv *env, jclass clazz, jlong controller, jint wait) {
-    return decode_to_utf8_string(env, chat_recv_msg_wait((void*)controller, wait));
+    return decode_and_free_utf8_string(env, chat_recv_msg_wait((void*)controller, wait));
 }
 
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatParseMarkdown(JNIEnv *env, jclass clazz, jstring str) {
     const char *_str = encode_to_utf8_chars(env, str);
-    jstring res = decode_to_utf8_string(env, chat_parse_markdown(_str));
+    jstring res = decode_and_free_utf8_string(env, chat_parse_markdown(_str));
     release_utf8_chars((char *)_str);
     return res;
 }
@@ -156,7 +163,7 @@ Java_chat_simplex_common_platform_CoreKt_chatParseMarkdown(JNIEnv *env, jclass c
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatParseServer(JNIEnv *env, jclass clazz, jstring str) {
     const char *_str = encode_to_utf8_chars(env, str);
-    jstring res = decode_to_utf8_string(env, chat_parse_server(_str));
+    jstring res = decode_and_free_utf8_string(env, chat_parse_server(_str));
     release_utf8_chars((char *)_str);
     return res;
 }
@@ -164,7 +171,7 @@ Java_chat_simplex_common_platform_CoreKt_chatParseServer(JNIEnv *env, jclass cla
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatParseUri(JNIEnv *env, jclass clazz, jstring str, jint safe) {
     const char *_str = encode_to_utf8_chars(env, str);
-    jstring res = decode_to_utf8_string(env, chat_parse_uri(_str, safe));
+    jstring res = decode_and_free_utf8_string(env, chat_parse_uri(_str, safe));
     release_utf8_chars((char *)_str);
     return res;
 }
@@ -173,7 +180,7 @@ JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatPasswordHash(JNIEnv *env, jclass clazz, jstring pwd, jstring salt) {
     const char *_pwd = encode_to_utf8_chars(env, pwd);
     const char *_salt = encode_to_utf8_chars(env, salt);
-    jstring res = decode_to_utf8_string(env, chat_password_hash(_pwd, _salt));
+    jstring res = decode_and_free_utf8_string(env, chat_password_hash(_pwd, _salt));
     release_utf8_chars((char *)_pwd);
     release_utf8_chars((char *)_salt);
     return res;
@@ -182,7 +189,7 @@ Java_chat_simplex_common_platform_CoreKt_chatPasswordHash(JNIEnv *env, jclass cl
 JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatValidName(JNIEnv *env, jclass clazz, jstring name) {
     const char *_name = encode_to_utf8_chars(env, name);
-    jstring res = decode_to_utf8_string(env, chat_valid_name(_name));
+    jstring res = decode_and_free_utf8_string(env, chat_valid_name(_name));
     release_utf8_chars((char *)_name);
     return res;
 }
@@ -200,7 +207,7 @@ Java_chat_simplex_common_platform_CoreKt_chatWriteFile(JNIEnv *env, jclass clazz
     const char *_path = encode_to_utf8_chars(env, path);
     jbyte *buff = (jbyte *) (*env)->GetDirectBufferAddress(env, buffer);
     jlong capacity = (*env)->GetDirectBufferCapacity(env, buffer);
-    jstring res = decode_to_utf8_string(env, chat_write_file((void*)controller, _path, buff, capacity));
+    jstring res = decode_and_free_utf8_string(env, chat_write_file((void*)controller, _path, buff, capacity));
     release_utf8_chars((char *)_path);
     return res;
 }
@@ -248,7 +255,7 @@ JNIEXPORT jstring JNICALL
 Java_chat_simplex_common_platform_CoreKt_chatEncryptFile(JNIEnv *env, jclass clazz, jlong controller, jstring from_path, jstring to_path) {
     const char *_from_path = encode_to_utf8_chars(env, from_path);
     const char *_to_path = encode_to_utf8_chars(env, to_path);
-    jstring res = decode_to_utf8_string(env, chat_encrypt_file((void*)controller, _from_path, _to_path));
+    jstring res = decode_and_free_utf8_string(env, chat_encrypt_file((void*)controller, _from_path, _to_path));
     release_utf8_chars((char *)_from_path);
     release_utf8_chars((char *)_to_path);
     return res;
@@ -260,7 +267,7 @@ Java_chat_simplex_common_platform_CoreKt_chatDecryptFile(JNIEnv *env, jclass cla
     const char *_key = encode_to_utf8_chars(env, key);
     const char *_nonce = encode_to_utf8_chars(env, nonce);
     const char *_to_path = encode_to_utf8_chars(env, to_path);
-    jstring res = decode_to_utf8_string(env, chat_decrypt_file(_from_path, _key, _nonce, _to_path));
+    jstring res = decode_and_free_utf8_string(env, chat_decrypt_file(_from_path, _key, _nonce, _to_path));
     release_utf8_chars((char *)_from_path);
     release_utf8_chars((char *)_key);
     release_utf8_chars((char *)_nonce);
