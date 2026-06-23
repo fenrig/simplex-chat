@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Simplex.Chat.Terminal.Notification (Notification (..), initializeNotifications) where
+module Simplex.Chat.Terminal.Notification (Notification (..), NotificationUrgency (..), initializeNotifications) where
 
 import Data.List (isInfixOf)
 import Data.Maybe (isJust)
@@ -15,7 +15,8 @@ import System.FilePath (combine)
 import System.Info (os)
 import System.Process (callProcess)
 
-data Notification = Notification {title :: T.Text, text :: T.Text}
+data NotificationUrgency = Low | Normal | Critical
+data Notification = Notification {title :: T.Text, text :: T.Text, urgency :: NotificationUrgency}
 
 initializeNotifications :: IO (Notification -> IO ())
 initializeNotifications =
@@ -44,8 +45,19 @@ initLinuxNotify = do
   pure $ if found then linuxNotify else noNotifications
 
 linuxNotify :: Notification -> IO ()
-linuxNotify Notification {title, text} =
-  callProcess "notify-send" [T.unpack title, T.unpack text]
+linuxNotify Notification {title, text, urgency} =
+  callProcess "notify-send"
+    [ "--app-name", "SimpleX Chat", "--icon", "simplex-chat", "--category", categoryFlag text,
+      "--urgency", urgencyFlag urgency, "--expire-time", "8000",
+      "--hint", "string:x-kde-appname:simplex-chat", T.unpack title, T.unpack text
+    ]
+
+urgencyFlag :: NotificationUrgency -> String
+urgencyFlag Low = "low"
+urgencyFlag Normal = "normal"
+urgencyFlag Critical = "critical"
+
+categoryFlag t = if t == "incoming call" then "call.incoming" else "im.received"
 
 macNotify :: Notification -> IO ()
 macNotify Notification {title, text} =
