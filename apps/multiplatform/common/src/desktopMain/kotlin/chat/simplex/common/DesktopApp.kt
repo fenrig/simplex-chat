@@ -87,6 +87,10 @@ fun showApp() {
   exitProcess(0)
 }
 
+fun hideWindow() {
+  simplexWindowState.windowVisible.value = false
+}
+
 @Composable
 private fun ApplicationScope.AppWindow(closedByError: MutableState<Boolean>) {
   // Creates file if not exists; comes with proper defaults
@@ -243,7 +247,7 @@ private fun ApplicationScope.handleCloseRequest(closedByError: MutableState<Bool
   when (pref.get()) {
     CloseBehavior.Quit -> exitApplication()
     CloseBehavior.MinimizeToTray -> if (trayIsAvailable && singleInstanceLock) {
-      simplexWindowState.windowVisible.value = false
+      hideWindow()
     } else exitApplication()
     CloseBehavior.Ask -> if (trayIsAvailable && singleInstanceLock) {
       requestCloseBehavior()
