@@ -50,7 +50,7 @@ val trayIsAvailable: Boolean by lazy {
 @Composable
 fun ApplicationScope.SimplexTray() {
   if (!trayIsAvailable) return
-  if (remember { appPrefs.closeBehavior.state }.value != CloseBehavior.MinimizeToTray) return
+  if (!singleInstanceLock) return
   // Sum of per-profile unread (UserInfo.unreadCount, the same field UserPicker renders
   // per row). Skip muted profiles unless they're the active one.
   val unread by remember {
@@ -68,12 +68,21 @@ fun ApplicationScope.SimplexTray() {
   val tooltip =
     if (unread > 0) stringResource(MR.strings.tray_tooltip_unread, unread)
     else stringResource(MR.strings.tray_tooltip)
+  
+  val windowVisible by remember { simplexWindowState.windowVisible }
+
   Tray(
     icon = painterResource(iconRes),
     tooltip = tooltip,
-    onAction = ::showWindow,
+    onAction = {
+      if (simplexWindowState.windowVisible.value) hideWindow() else showWindow()
+    },
     menu = {
-      Item(stringResource(MR.strings.tray_show), onClick = ::showWindow)
+      if (windowVisible) {
+        Item("Hide SimpleX", onClick = ::hideWindow)
+      } else {
+        Item(stringResource(MR.strings.tray_show), onClick = ::showWindow)
+      }
       Separator()
       Item(stringResource(MR.strings.tray_quit), onClick = { exitApplication() })
     }
@@ -106,7 +115,7 @@ fun ApplicationScope.requestCloseBehavior() {
         SectionItemView({
           AlertManager.shared.hideAlert()
           pref.set(CloseBehavior.MinimizeToTray)
-          simplexWindowState.windowVisible.value = false
+          hideWindow()
         }) {
           Text(
             stringResource(MR.strings.close_behavior_dialog_minimize),
