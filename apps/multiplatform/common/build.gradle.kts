@@ -142,6 +142,7 @@ kotlin {
         implementation("com.github.Dansoftowner:jSystemThemeDetector:3.8") {
           exclude("net.java.dev.jna")
         }
+        implementation("com.dorkbox:SystemTray:4.4")
         // For jSystemThemeDetector only
         implementation("net.java.dev.jna:jna-platform:5.14.0")
         implementation("com.sshtools:two-slices:0.9.1")

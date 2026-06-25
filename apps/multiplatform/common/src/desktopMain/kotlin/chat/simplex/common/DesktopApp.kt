@@ -32,8 +32,7 @@ import kotlin.system.exitProcess
 val simplexWindowState = SimplexWindowState()
 
 fun showApp() {
-  // Probe SystemTray off the EDT — the lazy's first read would otherwise block the
-  // EDT during composition; JDK-8322750's GNOME detection forks a subprocess.
+  // Initialize tray capability before the Compose app starts.
   trayIsAvailable
   while (true) {
     val closedByError = mutableStateOf(false)
@@ -85,6 +84,10 @@ fun showApp() {
     if (!closedByError.value) break
   }
   exitProcess(0)
+}
+
+fun hideWindow() {
+  simplexWindowState.windowVisible.value = false
 }
 
 @Composable
@@ -243,7 +246,7 @@ private fun ApplicationScope.handleCloseRequest(closedByError: MutableState<Bool
   when (pref.get()) {
     CloseBehavior.Quit -> exitApplication()
     CloseBehavior.MinimizeToTray -> if (trayIsAvailable && singleInstanceLock) {
-      simplexWindowState.windowVisible.value = false
+      hideWindow()
     } else exitApplication()
     CloseBehavior.Ask -> if (trayIsAvailable && singleInstanceLock) {
       requestCloseBehavior()
