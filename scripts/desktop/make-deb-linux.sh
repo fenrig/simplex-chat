@@ -40,7 +40,9 @@ fi
 
 export SOURCE_DATE_EPOCH=1704067200
 
-dpkg-deb -R ./release/main/deb/simplex*.deb ./extracted
+deb_file=$(find ./release/main/deb -maxdepth 1 -type f -name 'simplex*.deb' -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)
+rm -rf ./extracted
+dpkg-deb -R "$deb_file" ./extracted
 
 # Source the distribution variables (VERSION_CODENAME)
 . /etc/os-release
@@ -48,8 +50,21 @@ dpkg-deb -R ./release/main/deb/simplex*.deb ./extracted
 rm -f ./extracted/opt/*imple*/lib/app/*skiko-awt-runtime-linux*
 sed -i -e '/skiko-awt-runtime-linux/d' ./extracted/opt/*imple*/lib/app/simplex.cfg
 sed -i "/Version/ s/\$/~$VERSION_CODENAME/" ./extracted/DEBIAN/control
+rm -f ./extracted/usr/share/applications/simplex.desktop
+rm -f ./extracted/usr/share/applications/chat.simplex.simplex.desktop
+rm -f ./extracted/opt/*imple*/lib/simplex-simplex.desktop
+rm -f ./extracted/opt/*imple*/lib/simplex.desktop
+desktop_dir=$(echo ./extracted/opt/*imple*/lib)
+mkdir -p ./extracted/usr/share/applications
+cp ./desktop/build/processedResources/jvm/main/distribute/chat.simplex.simplex.desktop "$desktop_dir/chat.simplex.simplex.desktop"
+cp ./desktop/build/processedResources/jvm/main/distribute/chat.simplex.simplex.desktop ./extracted/usr/share/applications/chat.simplex.simplex.desktop
+if [ -e "$desktop_dir/chat.simplex.simplex.desktop" ]; then
+    chmod 644 "$desktop_dir/chat.simplex.simplex.desktop"
+fi
 find ./extracted/ -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
 
 dpkg-deb --build --root-owner-group --uniform-compression ./extracted ./release/main/deb/simplex_${ARCH}.deb
 
-strip-nondeterminism ./release/main/deb/simplex_${ARCH}.deb
+if command -v strip-nondeterminism >/dev/null 2>&1; then
+    strip-nondeterminism ./release/main/deb/simplex_${ARCH}.deb
+fi

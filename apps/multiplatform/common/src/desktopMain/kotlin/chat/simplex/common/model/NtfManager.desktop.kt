@@ -2,7 +2,6 @@ package chat.simplex.common.model
 
 import androidx.compose.ui.graphics.*
 import chat.simplex.common.platform.*
-import chat.simplex.common.simplexWindowState
 import chat.simplex.common.views.call.CallMediaType
 import chat.simplex.common.views.call.RcvCallInvitation
 import chat.simplex.common.views.helpers.*
@@ -18,9 +17,17 @@ import javax.imageio.ImageIO
 object NtfManager {
   private val prevNtfs = arrayListOf<Pair<Pair<Long, ChatId>, Slice>>()
   private val prevNtfsMutex: Mutex = Mutex()
+  private const val desktopAppName = "SimpleX Chat"
+  private const val desktopIconName = "simplex"
+  private const val desktopIconPath = "/opt/simplex/lib/simplex.png"
+  private const val desktopEntryId = "chat.simplex.simplex"
+  private enum class LinuxNotificationUrgency(val value: String) {
+    Low("low"),
+    Normal("normal"),
+    Critical("critical")
+  }
 
   fun notifyCallInvitation(invitation: RcvCallInvitation): Boolean {
-    if (simplexWindowState.windowFocused.value) return false
     val contactId = invitation.contact.id
     Log.d(TAG, "notifyCallInvitation $contactId")
     val image = invitation.contact.image
@@ -45,14 +52,14 @@ object NtfManager {
       generalGetString(MR.strings.accept) to { ntfManager.acceptCallAction(invitation.contact.id) },
       generalGetString(MR.strings.reject) to { ChatModel.callManager.endCall(invitation = invitation) }
     )
-    displayNotificationViaLib(invitation.user.userId, contactId, title, text, prepareIconPath(largeIcon), actions) {
+    displayNotificationViaLib(invitation.user.userId, contactId, title, text, prepareIconPath(largeIcon), actions, "call.incoming", LinuxNotificationUrgency.Critical) {
       ntfManager.openChatAction(invitation.user.userId, contactId)
     }
     return true
   }
 
   fun showMessage(title: String, text: String) {
-    displayNotificationViaLib(-1, "MESSAGE", title, text, null, emptyList()) {}
+    displayNotificationViaLib(-1, "MESSAGE", title, text, null, emptyList(), "im.received", LinuxNotificationUrgency.Normal) {}
   }
 
   fun hasNotificationsForChat(chatId: ChatId) = false//prevNtfs.any { it.first == chatId }
@@ -106,7 +113,7 @@ object NtfManager {
       else -> base64ToBitmap(image)
     }
 
-    displayNotificationViaLib(user.userId, chatId, title, content, prepareIconPath(largeIcon), actions.map { it.first.name to it.second }) {
+    displayNotificationViaLib(user.userId, chatId, title, content, prepareIconPath(largeIcon), actions.map { it.first.name to it.second }, "im.received", LinuxNotificationUrgency.Normal) {
       ntfManager.openChatAction(user.userId, chatId)
     }
   }
@@ -118,8 +125,15 @@ object NtfManager {
     text: String,
     iconPath: String?,
     actions: List<Pair<String, () -> Unit>>,
+    linuxCategory: String,
+    linuxUrgency: LinuxNotificationUrgency,
     defaultAction: (() -> Unit)?
   ) {
+    if (desktopPlatform.isLinux()) {
+      displayLinuxNotification(title, text, iconPath, actions, linuxCategory, linuxUrgency, defaultAction)
+      return
+    }
+
     val builder = Toast.builder()
       .title(title)
       .content(text)
@@ -144,6 +158,64 @@ object NtfManager {
         val text = e.stackTraceToString().lines().getOrNull(0) ?: ""
         showToast(generalGetString(MR.strings.error_showing_desktop_notification) + " " + text, 4_000)
       }
+    }
+  }
+
+  private fun displayLinuxNotification(
+    title: String,
+    text: String,
+    iconPath: String?,
+    actions: List<Pair<String, () -> Unit>>,
+    category: String,
+    urgency: LinuxNotificationUrgency,
+    defaultAction: (() -> Unit)?
+  ) {
+    Thread {
+      try {
+        val command = mutableListOf(
+          "notify-send",
+          "--app-name", desktopAppName,
+          "--app-icon", desktopIconName,
+          "--icon", iconPath ?: desktopIconPath,
+          "--category", category,
+          "--urgency", urgency.value,
+          "--hint", "string:desktop-entry:$desktopEntryId"
+        )
+        actions.forEachIndexed { index, action ->
+          command.add("--action")
+          command.add("action$index=${action.first}")
+        }
+        if (actions.isNotEmpty()) {
+          command.add("--wait")
+        }
+        command.add(title)
+        command.add(text)
+
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
+        if (actions.isEmpty()) {
+          return@Thread
+        }
+        val selectedAction = if (actions.isNotEmpty()) {
+          process.inputStream.bufferedReader().readText().trim()
+        } else {
+          ""
+        }
+        process.waitFor()
+        when {
+          selectedAction == "default" -> defaultAction?.invoke()
+          selectedAction.startsWith("action") -> selectedAction.removePrefix("action").toIntOrNull()?.let { actions.getOrNull(it)?.second?.invoke() }
+        }
+      } catch (e: Throwable) {
+        Log.e(TAG, e.stackTraceToString())
+        if (e !is Exception) {
+          val errText = e.stackTraceToString().lines().getOrNull(0) ?: ""
+          showToast(generalGetString(MR.strings.error_showing_desktop_notification) + " " + errText, 4_000)
+        }
+      }
+    }.apply {
+      name = "simplex-linux-notification"
+      isDaemon = true
+      start()
     }
   }
 

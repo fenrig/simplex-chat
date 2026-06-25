@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>chat.simplex.app</id>
-  <launchable type="desktop-id">chat.simplex.app.desktop</launchable>
+  <launchable type="desktop-id">chat.simplex.simplex.desktop</launchable>
   <metadata_license>FSFAP</metadata_license>
   <project_license>AGPL-3.0</project_license>
   <name>SimpleX</name>

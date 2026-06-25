@@ -21,6 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (getCurrentTimeZone)
+import Simplex.Chat.Call (RcvCallInvitation (..))
 import Simplex.Chat.Controller
 import Simplex.Chat.Library.Commands (execChatCommand, execChatCommand')
 import Simplex.Chat.Markdown
@@ -30,7 +31,7 @@ import Simplex.Chat.Options
 import Simplex.Chat.Protocol (MsgContent (..), msgContentText)
 import Simplex.Chat.Remote.Types (RHKey (..), RemoteHostId, RemoteHostInfo (..), RemoteHostSession (..))
 import Simplex.Chat.Styled
-import Simplex.Chat.Terminal.Notification (Notification (..), initializeNotifications)
+import Simplex.Chat.Terminal.Notification (Notification (..), NotificationUrgency (..), initializeNotifications)
 import Simplex.Chat.Types
 import Simplex.Chat.View
 import Simplex.Messaging.TMap (TMap)
@@ -200,30 +201,33 @@ chatEventNotification t@ChatTerminal {sendNotification} cc = \case
       sendNtf ("#" <> viewGroupName g <> " " <> viewContactName ct <> "> ", "invited you to join the group")
   CEvtUserJoinedGroup u g _ -> when (groupNtf u g False) $ do
     whenCurrUser cc u $ setActiveGroup t g
-    sendNtf ("#" <> viewGroupName g, "you are connected to group")
+    sendNtf' Low ("#" <> viewGroupName g, "you are connected to group")
   CEvtJoinedGroupMember u g m ->
-    when (groupNtf u g False) $ sendNtf ("#" <> viewGroupName g, "member " <> viewMemberName m <> " is connected")
+    when (groupNtf u g False) $ sendNtf' Low ("#" <> viewGroupName g, "member " <> viewMemberName m <> " is connected")
   CEvtJoinedGroupMemberConnecting u g _ m | memberStatus m == GSMemPendingReview ->
     when (groupNtf u g False) $ sendNtf ("#" <> viewGroupName g, "member " <> viewMemberName m <> " is pending review")
   CEvtConnectedToGroupMember u g m _ ->
-    when (groupNtf u g False) $ sendNtf ("#" <> viewGroupName g, "member " <> viewMemberName m <> " is connected")
+    when (groupNtf u g False) $ sendNtf' Low ("#" <> viewGroupName g, "member " <> viewMemberName m <> " is connected")
   CEvtReceivedContactRequest u UserContactRequest {localDisplayName = n} _ ->
     when (userNtf u) $ sendNtf (viewName n <> ">", "wants to connect to you")
+  CEvtCallInvitation RcvCallInvitation {user = u, contact = ct} ->
+    when (contactNtf u ct False) $ sendNtf' Critical (viewContactName ct <> "> ", "incoming call")
   CEvtDeletedMemberUser _u g m _withMessages _signed ->
-    sendNtf ("#" <> viewGroupName g, viewMemberName m <> " removed you from the group")
+    sendNtf' Critical ("#" <> viewGroupName g, viewMemberName m <> " removed you from the group")
   _ -> pure ()
   where
-    sendNtf = maybe (\_ -> pure ()) (. uncurry Notification) sendNotification
+    sendNtf = sendNtf' Normal
+    sendNtf' urgency = maybe (\_ -> pure ()) (\f (title, text) -> f Notification {title, text, urgency}) sendNotification
 
 chatResponseNotification :: ChatTerminal -> Either ChatError ChatResponse -> IO ()
 chatResponseNotification ChatTerminal {sendNotification} = \case
   Right r -> case r of
-    CRUserContactLinkCreated {} -> sendNtf ("SimpleX", "contact link created")
-    CRUserProfileUpdated {} -> sendNtf ("SimpleX", "profile updated")
+    CRUserContactLinkCreated {} -> sendNtf Low ("SimpleX", "contact link created")
+    CRUserProfileUpdated {} -> sendNtf Low ("SimpleX", "profile updated")
     _ -> pure ()
   Left _ -> pure ()
   where
-    sendNtf = maybe (\_ -> pure ()) (. uncurry Notification) sendNotification
+    sendNtf urgency = maybe (\_ -> pure ()) (\f (title, text) -> f Notification {title, text, urgency}) sendNotification
 
 msgText :: MsgContent -> Maybe MarkdownList -> Text
 msgText (MCFile _) _ = "wants to send a file"
